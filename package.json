@@ -3,7 +3,13 @@
   "version": "0.0.1",
   "private": false,
   "type": "module",
+  "bin": {
+    "dep-drift": "./src/cli.ts"
+  },
   "scripts": {
     "test": "bun test"
+  },
+  "dependencies": {
+    "semver": "^7.0.0"
   }
 }
