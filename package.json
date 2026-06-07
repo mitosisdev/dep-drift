@@ -1,0 +1,9 @@
+{
+  "name": "dep-drift",
+  "version": "0.0.1",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  }
+}
