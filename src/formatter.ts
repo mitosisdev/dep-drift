@@ -17,17 +17,27 @@ function formatText(report: Report): string {
 
   const lines: string[] = [`Found ${report.findings.length} issue(s):\n`];
 
-  for (const f of report.findings) {
+  // Non-unused findings
+  const otherFindings = report.findings.filter((f) => f.type !== "unused");
+  for (const f of otherFindings) {
     const tag = `[${f.type.toUpperCase()}]`.padEnd(11);
     let detail: string;
     if (f.type === "drift") {
       detail = `installed ${f.installed} vs wanted ${f.wanted}`;
-    } else if (f.type === "outdated") {
-      detail = `installed ${f.installed}, latest ${f.latest}`;
     } else {
-      detail = `no import sites found`;
+      detail = `installed ${f.installed}, latest ${f.latest}`;
     }
     lines.push(`  ${tag} ${f.name} (${f.depType}) — ${detail}`);
+  }
+
+  // Unused dependencies section
+  const unusedFindings = report.findings.filter((f) => f.type === "unused");
+  if (unusedFindings.length > 0) {
+    if (otherFindings.length > 0) lines.push("");
+    lines.push("## Unused Dependencies\n");
+    for (const f of unusedFindings) {
+      lines.push(`  [UNUSED]    ${f.name} — no import sites found in source`);
+    }
   }
 
   return lines.join("\n");
