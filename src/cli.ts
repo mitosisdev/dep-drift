@@ -10,6 +10,7 @@
 
 import { analyse } from "./analyzer.ts";
 import { format } from "./formatter.ts";
+import { loadDriftignore, filterFindings } from "./driftignore.ts";
 import type { CliOptions, FailOnMode, OutputFormat } from "./types.ts";
 
 /** Parse process.argv-style args into CliOptions */
@@ -56,16 +57,22 @@ export async function run(
 ): Promise<{ output: string; exitCode: number }> {
   const { analyse: analyseImpl } = await import("./analyzer.ts");
   const { format: formatImpl } = await import("./formatter.ts");
+  const { loadDriftignore: loadIgnore, filterFindings: filterFn } = await import("./driftignore.ts");
 
   const report = await (registryLookup
     ? analyseImpl(opts.cwd, registryLookup)
     : analyseImpl(opts.cwd));
 
-  const output = formatImpl(report, opts.format);
+  // Apply .driftignore filtering
+  const ignored = await loadIgnore(opts.cwd);
+  const filteredFindings = filterFn(report.findings, ignored);
+  const filteredReport = { ...report, findings: filteredFindings };
+
+  const output = formatImpl(filteredReport, opts.format);
 
   let exitCode = 0;
   if (opts.failOn) {
-    const triggered = report.findings.some((f) => f.type === opts.failOn);
+    const triggered = filteredReport.findings.some((f) => f.type === opts.failOn);
     if (triggered) exitCode = 1;
   }
 
