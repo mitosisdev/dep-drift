@@ -1,0 +1,78 @@
+# action.yml — dep-drift composite GitHub Action
+#
+# Zero-config dependency-drift check for any project. Drop into a workflow:
+#
+#   - uses: mitosisdev/dep-drift@v1
+#
+# Sets up Bun, installs dep-drift, runs it against your repo, and posts the
+# report to the job summary. Fails the build on drift by default.
+
+name: dep-drift
+description: >-
+  Diff package.json against your lockfile and the npm registry to surface
+  version drift, unused dependencies, and outdated pins — straight in CI.
+author: mitosisdev
+
+branding:
+  icon: git-pull-request
+  color: purple
+
+inputs:
+  fail-on-drift:
+    description: >-
+      Fail the job (non-zero exit) when version drift is detected.
+      Set to "false" to report drift without failing the build.
+    required: false
+    default: "true"
+  working-directory:
+    description: Directory to analyse (the project root containing package.json).
+    required: false
+    default: "."
+  version:
+    description: >-
+      Version of dep-drift to install from npm (e.g. "1.2.0").
+      Defaults to "latest".
+    required: false
+    default: "latest"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Install dep-drift
+      shell: bash
+      run: bun install -g "dep-drift@${{ inputs.version }}"
+
+    - name: Run dep-drift
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -o pipefail
+
+        # Build the optional --fail-on flag from the input.
+        fail_flag=""
+        if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
+          fail_flag="--fail-on drift"
+        fi
+
+        # Run dep-drift, tee the text report so we can both surface it in the
+        # log and append it to the job summary. Capture the exit code without
+        # letting `set -e` abort before we write the summary.
+        set +e
+        report="$(dep-drift $fail_flag . 2>&1)"
+        status=$?
+        set -e
+
+        echo "$report"
+
+        {
+          echo "## dep-drift report"
+          echo ""
+          echo '```'
+          echo "$report"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        exit $status
