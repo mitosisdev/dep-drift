@@ -1,8 +1,34 @@
 {
   "name": "dep-drift",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": false,
   "type": "module",
+  "description": "CLI that diffs package.json against the lockfile and npm registry to surface version drift, unused deps, and outdated pins.",
+  "keywords": [
+    "dependencies",
+    "drift",
+    "unused",
+    "outdated",
+    "npm",
+    "cli",
+    "package.json"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mitosisdev/dep-drift.git"
+  },
+  "bin": {
+    "dep-drift": "src/cli.ts"
+  },
+  "main": "src/cli.ts",
+  "exports": {
+    ".": "./src/cli.ts"
+  },
+  "files": [
+    "src/",
+    "README.md"
+  ],
   "scripts": {
     "test": "bun test"
   }
