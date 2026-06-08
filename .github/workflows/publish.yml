@@ -1,0 +1,36 @@
+name: Publish
+
+# Publish dep-drift to npm whenever a v* tag is pushed (e.g. v1.0.0).
+# Tests run first — a broken build never reaches the registry.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node (for npm registry auth)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests (fail fast)
+        run: bun test
+
+      - name: Publish to npm
+        run: bun publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+          NPM_CONFIG_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
