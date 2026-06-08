@@ -59,22 +59,61 @@ function getSourceFiles(dir: string): string[] {
   return results;
 }
 
+/**
+ * Extract the set of bare package names referenced by import/require in a
+ * collection of source-file contents.
+ *
+ * Handles all common forms:
+ *   import ... from 'pkg'
+ *   import ... from 'pkg/sub/path'
+ *   import('pkg')
+ *   require('pkg')
+ *   require('pkg/sub/path')
+ *
+ * Subpath imports are normalised to the root package name:
+ *   'lodash/fp'  →  'lodash'
+ *   '@scope/pkg/sub'  →  '@scope/pkg'
+ *
+ * @param contents - Array of source file content strings (in-memory, no FS access needed)
+ */
+export function extractUsedPackages(contents: string[]): Set<string> {
+  // Matches any quoted string that looks like a bare-package import (not relative/absolute)
+  // Captures the full specifier; we strip the subpath below.
+  const re = /(?:from|import|require)\s*\(\s*['"`]([^'"`.][^'"`]*)['"`]\s*\)|(?:from)\s+['"`]([^'"`.][^'"`]*)['"`]/gm;
+  const used = new Set<string>();
+
+  for (const content of contents) {
+    let m: RegExpExecArray | null;
+    re.lastIndex = 0;
+    while ((m = re.exec(content)) !== null) {
+      const specifier = (m[1] ?? m[2] ?? "").trim();
+      if (!specifier) continue;
+      // Skip relative or absolute paths
+      if (specifier.startsWith(".") || specifier.startsWith("/")) continue;
+      // Normalise subpath to root package name
+      const pkg = specifier.startsWith("@")
+        ? specifier.split("/").slice(0, 2).join("/")  // @scope/name(/sub) → @scope/name
+        : specifier.split("/")[0]!;                    // name(/sub) → name
+      if (pkg) used.add(pkg);
+    }
+  }
+
+  return used;
+}
+
 /** Check whether a package name appears in any source file import/require */
 function isUsedInSource(cwd: string, name: string): boolean {
   const srcDir = join(cwd, "src");
   const files = getSourceFiles(existsSync(srcDir) ? srcDir : cwd);
-  // Escape special chars in package name for regex
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`['"\`]${escaped}(/|['"\`])`, "m");
+  const contents: string[] = [];
   for (const file of files) {
     try {
-      const content = readFileSync(file, "utf8");
-      if (re.test(content)) return true;
+      contents.push(readFileSync(file, "utf8"));
     } catch {
       // skip unreadable files
     }
   }
-  return false;
+  return extractUsedPackages(contents).has(name);
 }
 
 /** Resolve wanted range to a concrete version string for comparison.
@@ -156,8 +195,8 @@ export async function analyse(
       continue;
     }
 
-    // unused: no import sites found in source
-    if (!isUsedInSource(cwd, name)) {
+    // unused: no import sites found in source (only flag `dependencies`, not devDeps/peerDeps)
+    if (depType === "dependencies" && !isUsedInSource(cwd, name)) {
       findings.push({ name, installed, wanted, latest, depType, type: "unused" });
     }
   }
